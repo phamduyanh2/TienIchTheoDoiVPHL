@@ -25,6 +25,7 @@ public static Connection connection=KetNoi.getConnect("XPFINAL\\SQLEXPRESS", "HA
 				
 				ktk.setsTT(result.getInt("STT"));
 				ktk.setKhongThongKe(result.getString("KhongThongKe"));
+			
 								
 				dsKhongThongKe.add(ktk);
 								

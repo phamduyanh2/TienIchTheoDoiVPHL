@@ -7,7 +7,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellRenderer; 
 import javax.swing.table.TableColumn; 
 import javax.swing.table.TableColumnModel; 
-import java.awt.Component; 
+import java.awt.Component;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Enumeration; 
 import java.util.HashMap; 
 import java.util.Map; 
@@ -38,8 +40,12 @@ public class TextAreaRenderer extends JTextArea implements TableCellRenderer {
     public TextAreaRenderer() { 
         setLineWrap(true); 
         setWrapStyleWord(true); 
+        
+       
+        
     } 
  
+    
     /** 
      * Returns the component used for drawing the cell.  This method is 
      * used to configure the renderer appropriately before drawing. 
@@ -63,8 +69,10 @@ public class TextAreaRenderer extends JTextArea implements TableCellRenderer {
         setBorder(renderer.getBorder()); 
         setFont(renderer.getFont()); 
         setText(renderer.getText());
+        
+       
 
-    //    ((JLabel)renderer).setHorizontalAlignment(JLabel.CENTER); // moi them
+     // ((JLabel)renderer).setHorizontalAlignment(JLabel.CENTER); // moi them
        
  
         TableColumnModel columnModel = table.getColumnModel(); 

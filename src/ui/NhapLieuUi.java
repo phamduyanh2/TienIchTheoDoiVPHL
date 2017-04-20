@@ -11,6 +11,9 @@ import java.awt.GridLayout;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.print.PrinterIOException;
@@ -20,10 +23,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
+import javax.annotation.processing.Messager;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
@@ -52,6 +58,9 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumnModel;
 import javax.swing.text.html.HTMLEditorKit.Parser;
 import javax.swing.tree.DefaultMutableTreeNode;
+import javax.xml.ws.handler.MessageContext;
+
+
 
 import connect.DoiXuLy;
 import connect.DoiXuLyService;
@@ -69,13 +78,17 @@ import connect.TuyenDuong;
 import connect.TuyenDuongService;
 import connect.Xa;
 import connect.XaService;
+import dulieu.DateRenderer;
 import dulieu.KiemTraDuLieuDauVao;
 import dulieu.TextAreaRenderer;
 import dulieu.TruongHopViPham;
+import dulieu.UpdateExcel;
 
 import groupheader.ColumnGroup;
 import groupheader.GroupableTableHeader;
 import groupheader.GroupableTableHeaderUI;
+import sorttherowheader.HeaderListener;
+import sorttherowheader.SortButtonRenderer;
 
 // EndRegion import
 
@@ -109,7 +122,7 @@ public class NhapLieuUi extends JFrame{
 	
 	DefaultTableModel dtm;
 	JTable tblChiTietViPham;
-	 JLabel lblThongTinTongQuat; 
+	 JLabel lblThongTinTongQuat =new JLabel(); 
 	
 	JTextField txtSTT,txtNgayPhatSinh,txtThanhPhoHuyen,txtXa, txtNguoiXuLy,txtDoiXuLy,
 	 txtTenDuong, txtLyTrinh, txtLoaiViPham;
@@ -135,7 +148,7 @@ public class NhapLieuUi extends JFrame{
 	JComboBox<GhiChu>cboGhiChu;
 	JComboBox<KhongThongKe>cboKhongThongKe;
 	
-	TruongHopViPham dsTruongHopViPham;
+	TruongHopViPham dsTruongHopViPham =new TruongHopViPham();
 	
 	
 	Connection conn=null;
@@ -143,6 +156,7 @@ public class NhapLieuUi extends JFrame{
 	ResultSet result=null;
 	
 	SimpleDateFormat sdf_ddMMyyyy = new SimpleDateFormat("dd/MM/yyyy");
+	Vector<TruongHopViPham> thvp=new Vector<TruongHopViPham>();
 	
 	public  NhapLieuUi (String title)
 	{
@@ -159,6 +173,7 @@ public class NhapLieuUi extends JFrame{
 		fillCboXa();
 		fillCboKhongThongKe();
 		showWinDow2();
+		xuLyNhap();
 	}
 
 public boolean kiemTraMaTonTai(String ma)
@@ -181,7 +196,35 @@ public boolean kiemTraMaTonTai(String ma)
 	return false;
 }
 	
+
+int stt=0; // khai bao la bien toan cuc
+
+public int laySTTCuoiCung()
+{
 	
+	try
+	{
+		String sql="select MAX(STT) from NHAPTHONGTIN";
+		preStatement=conn.prepareStatement(sql);		
+		ResultSet rs=preStatement.executeQuery();
+
+		while (rs.next())
+		{
+	return stt=rs.getInt(1);
+	
+		}
+	
+	}
+	catch(Exception ex)
+	{
+		ex.printStackTrace();
+	}	
+	return stt;
+	
+}
+
+
+
 	
 	private void hienThiDSVPHLATDB() {
 		
@@ -190,10 +233,14 @@ public boolean kiemTraMaTonTai(String ma)
 			CallableStatement callStatement=conn.prepareCall("{call LayDSVPHLATDB}");
 			result=callStatement.executeQuery();
 			dtm.setRowCount(0);
+			
+			thvp=new Vector<TruongHopViPham>();		// phuc vu xuat ra ngoai
+			
 			while(result.next())
 			{
 				Vector<Object>vec =new Vector<Object>();
 				vec.add(result.getInt("STT"));
+				
 				vec.add(result.getDate("NgayPhatSinh"));
 				
 				
@@ -234,7 +281,72 @@ public boolean kiemTraMaTonTai(String ma)
 				vec.add(result.getString("GhiChuKhac"));
 				
 				dtm.addRow(vec);
+				
+				ThongTinTongQuat(dtm);
+					
+			// Phuc vu xuat ra ngoai				
+			
+			dsTruongHopViPham =new TruongHopViPham();
+			
+			
+			dsTruongHopViPham.setsTT(result.getInt("STT"));
+			dsTruongHopViPham.setNgayPhatSinh(result.getDate("NgayPhatSinh"));
+			
+			
+			// cach chyen ult date sang sql date tuy nh
+//			if(KiemTraDuLieuDauVao.KiemTraNgayThang2(result, "NgayPhatSinh")==null)
+//			{
+//				dsTruongHopViPham.setNgayPhatSinh(result.getDate("NgayPhatSinh"));
+//				
+//			}
+//			else {
+//				dsTruongHopViPham.setNgayPhatSinh(new java.sql.Date(sdf_ddMMyyyy.parse(KiemTraDuLieuDauVao.KiemTraNgayThang2(result, "NgayPhatSinh")).getTime()));
+//			}
+			
+			dsTruongHopViPham.setThanhPhoHuyen(result.getString("Huyen"));
+			dsTruongHopViPham.setXa(result.getString("Xa"));
+			dsTruongHopViPham.setNguoiXuLy(result.getString("NguoiXuLy"));
+			dsTruongHopViPham.setDoiXuLy(result.getString("DoiXuLy"));
+			dsTruongHopViPham.setTuyenDuong(result.getString("TenDuong"));
+			dsTruongHopViPham.setLyTrinh(result.getString("LyTrinh"));
+			dsTruongHopViPham.setNguoiViPham(result.getString("NguoiViPham"));
+			dsTruongHopViPham.setNoiDungViPham(result.getString("NoiDungViPham"));
+			dsTruongHopViPham.setLoaiViPham(result.getString("LoaiViPham"));
+			
+			dsTruongHopViPham.setNgayLapBBKC(result.getDate("NgayLapBBKC"));
+			dsTruongHopViPham.setNgayChuyenGiaoBBKC(result.getDate("NgayChuyenGiaoBBKC"));
+			dsTruongHopViPham.setNgayLapBBVPHC(result.getDate("NgayLapBBVPHC"));
+			dsTruongHopViPham.setSoBBVPHC(result.getString("SoBBVPHC"));
+			
+			dsTruongHopViPham.setNgayChuyenGiaoBBVPHC(result.getDate("NgayChuyenGiaoBBVPHC"));
+			dsTruongHopViPham.setSoBBChuyenGiaoBBVPHC(result.getString("SoBBChuyenGiao"));
+			dsTruongHopViPham.setNgayQuyetDinh(result.getDate("NgayQuyetDinh"));
+			dsTruongHopViPham.setSoQuyetDinh(result.getString("SoQuyetDinh"));
+			dsTruongHopViPham.setSoTien(result.getFloat("SoTien"));
+			
+			dsTruongHopViPham.setNgayLapBBLV(result.getDate("NgayBBLV"));
+			dsTruongHopViPham.setSoBBLV(result.getString("SoBBLV"));
+			dsTruongHopViPham.setNgayLapBBCK(result.getDate("NgayBBCamKet"));
+			dsTruongHopViPham.setSoBBCK(result.getString("SoBBCamKet"));
+			
+			dsTruongHopViPham.setKetQuaXuLy(result.getString("KetQuaXuLy"));
+			dsTruongHopViPham.setGhiChu(result.getString("GhiChu"));
+			dsTruongHopViPham.setKhongThongKe(result.getString("KhongThongKe"));
+			
+			dsTruongHopViPham.setNgayThaoDo(result.getDate("NgayThaoDo"));
+			dsTruongHopViPham.setNgayCuongChe(result.getDate("NgayCuongChe"));
+			dsTruongHopViPham.setNgayTuyenTruyen(result.getDate("NgayTuyenTruyen"));
+			dsTruongHopViPham.setSoLanTaiPham(result.getInt("SoLanTaiPham"));
+			dsTruongHopViPham.setGhiChuKhac(result.getString("GhiChuKhac"));
+			
+			
+			thvp.add(dsTruongHopViPham);
+			
+			
+			
 			}
+			
+			
 			
 			
 		}
@@ -322,7 +434,10 @@ public boolean kiemTraMaTonTai(String ma)
 		pnMenu.setLayout(new FlowLayout(FlowLayout.LEFT));
 		pnMain.add(pnMenu,BorderLayout.NORTH);		
 				
-		btnThem=new JButton("Them moi");
+		
+		btnNhapLai=new JButton("Nhập trường hợp vi phạm");
+		pnMenu.add(btnNhapLai);
+		btnThem=new JButton("Them");
 		pnMenu.add(btnThem);
 		btnSua=new JButton("Sửa");
 		pnMenu.add(btnSua);
@@ -330,8 +445,7 @@ public boolean kiemTraMaTonTai(String ma)
 		pnMenu.add(btnXoa);
 		btnCapNhap=new JButton("Cập nhập");
 		pnMenu.add(btnCapNhap);				
-		btnNhapLai=new JButton("Nhập lại");
-		pnMenu.add(btnNhapLai);
+		
 		
 		txtTimKiem=new JTextField();
 		txtTimKiem.setPreferredSize(new Dimension(200, 30));
@@ -755,6 +869,7 @@ public boolean kiemTraMaTonTai(String ma)
 		
 		dtm = new DefaultTableModel();
 		
+		
 		dtm.addColumn("STT");
 		dtm.addColumn("Ngày phát sinh");
 		dtm.addColumn("Tp/Huyện");
@@ -903,9 +1018,11 @@ public boolean kiemTraMaTonTai(String ma)
 		//Start Canh chinh oi dung cua O trong table
 		
 		DefaultTableCellRenderer centerRender=new DefaultTableCellRenderer();
-		centerRender.setHorizontalAlignment(JLabel.CENTER);
+		 centerRender.setHorizontalAlignment(JLabel.CENTER);
 		
 		tblChiTietViPham.getColumnModel().getColumn(2).setCellRenderer(centerRender);
+		
+		
 		
 		
 		// End Canh Chinh
@@ -913,21 +1030,107 @@ public boolean kiemTraMaTonTai(String ma)
 		// Start Thiet lap che do Wrap text cho Cell in JTable (su dung class TexAreaRender
 		 TableColumnModel cmodel = tblChiTietViPham.getColumnModel(); 
 	        TextAreaRenderer textAreaRenderer = new TextAreaRenderer(); 
-	 
+	        
+	        
+	     
+	        
+	        
+	        
 	        cmodel.getColumn(0).setCellRenderer(new DefaultTableCellRenderer()); 
 	        
 	        for(int i=1;i<=31;i++)
 	        {
 	        cmodel.getColumn(i).setCellRenderer(textAreaRenderer); 
+	       
 	        }
 	        
 	     // End Thiet lap che do Wrap text cho Cell in JTable (su dung class TexAreaRender
+	        
+	        // THiet lap hien thi ngay thang cho cac cot trong bang theo dd/MM/yyyy
+	        DateRenderer dateRenderer =new DateRenderer();     	       
+	        cmodel.getColumn(1).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(11).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(12).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(13).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(15).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(17).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(20).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(22).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(27).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(28).setCellRenderer(dateRenderer);
+	        cmodel.getColumn(29).setCellRenderer(dateRenderer);
+	       
+	        
+	     
 		
 		tblChiTietViPham.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);		
+		
+	
 		
 		// Start tuy chinh Header
 		JTableHeader header2 = tblChiTietViPham.getTableHeader();
 		header2.setFont(new Font("Dialog", Font.BOLD, 13));
+		
+		
+		
+		
+		
+		// THU THIET LAP SORT CHO HEADER
+//		SortButtonRenderer renderer=new SortButtonRenderer();
+//		header2.addMouseListener(new HeaderListener(header2,renderer));
+//		
+//		
+//		public Class getColumnClass(int col) {
+//	        switch (col) {
+//	          case  0: return String.class;
+//	          case  1: return Date.class;
+//	          case  2: return Integer.class;
+//	          case  3: return Boolean.class;
+//	          default: return Object.class;
+//	        }
+//
+
+		
+		    header2.addMouseListener(new MouseListener() {
+				
+				@Override
+				public void mouseReleased(MouseEvent e) {
+					// TODO Auto-generated method stub
+					
+				}
+				
+				@Override
+				public void mousePressed(MouseEvent e) {
+					// TODO Auto-generated method stub
+					
+				}
+				
+				@Override
+				public void mouseExited(MouseEvent e) {
+					// TODO Auto-generated method stub
+					
+				}
+				
+				@Override
+				public void mouseEntered(MouseEvent e) {
+					// TODO Auto-generated method stub
+					
+				}
+				
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					// TODO Auto-generated method stub
+					JOptionPane.showMessageDialog(null, "aaaaaaaaaaaa");
+				}
+			});
+		    
+		    
+		    
+		    
+		    
+		    
+		    
+		
 		
 	//	header.setPreferredSize(new Dimension(tblChiTietViPham.getColumnModel().getTotalColumnWidth(), 37)); // neu de dong nay thi header chay lung tung
 		
@@ -1200,15 +1403,18 @@ public boolean kiemTraMaTonTai(String ma)
 		
 				JPanel pnThongTinPhu=new JPanel();		
 				pnThongTinPhu.setLayout(new FlowLayout(FlowLayout.LEFT));
-				
-				
+								
 				con.add(pnThongTinPhu, BorderLayout.SOUTH);
-				 Date date = new Date();
-			      JLabel lblThongTinTongQuat =new JLabel();
-			      lblThongTinTongQuat.setText("Ngày hiện tại là: " +sdf_ddMMyyyy.format(date).toString()
-			    		  +"; Tổng số có "+Integer.toString(dtm.getRowCount())+" trường hợp vi phạm");
+	
+					Date date = new Date();
+			    
 			      pnThongTinPhu.add(lblThongTinTongQuat);
 			      
+			
+
+			      
+			     
+			   
 			    //  dtm.getRowCount()
 			   
 			     // tblChiTietViPham.getRowCount()
@@ -1238,11 +1444,17 @@ public boolean kiemTraMaTonTai(String ma)
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				JOptionPane.showMessageDialog(null, "ban vua tao file moi");
+			
+			//	UpdateExcel.capNhap("tien","anh");  // da hoat dong
+				
+				XuatBaoCao();
 				
 			}
+				
+			
 		});
 		
-			
+		
 		tblChiTietViPham.addMouseListener(new MouseListener() {
 			
 			@Override
@@ -1271,11 +1483,14 @@ public boolean kiemTraMaTonTai(String ma)
 			
 			@Override
 			public void mouseClicked(MouseEvent e) {
+				if(e.getClickCount()==1){
+					xuLyNhap(); // xoa cac du lieu hien co cua cac jtextfile va combobox de hien thi cho dung
 				int row=tblChiTietViPham.getSelectedRow();
 				if(row==-1)return;
 				String ma=tblChiTietViPham.getValueAt(row,0)+"";
 				hienThiChiTietTHVP(ma);
-				
+				}
+			
 			}
 		});
 		
@@ -1301,11 +1516,21 @@ public boolean kiemTraMaTonTai(String ma)
 			
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-			JOptionPane.showMessageDialog(null,cboXa.getSelectedItem().toString());
-				
+			
+			hienThiDSVPHLATDB();
 			}
 		});
 		
+		
+		btnNhapLai.addActionListener(new ActionListener() {
+			
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				xuLyNhap();
+				
+				
+			}
+		});
 		
 		tree.addMouseListener(new MouseListener() {
 
@@ -1348,6 +1573,22 @@ public boolean kiemTraMaTonTai(String ma)
 					hienThiDSVPHLATDB();
 					break;
 					
+				case "TUYẾN ĐƯỜNG":
+					hienThiDSVPHLATDB();
+					break;
+					
+				case "ĐỊA BÀN":
+					hienThiDSVPHLATDB();
+					break;
+					
+					case "TỈNH LỘ":
+					
+						hienThiDSVPHLATDBTinhLo();
+						
+						System.out.println(laySTTCuoiCung());
+					
+					break;	
+					
 				case "QL 24":					
 					hienThiDSVPHLATDBTheoDuongHuyenXa("Duong","QL24");
 					break;
@@ -1365,13 +1606,10 @@ public boolean kiemTraMaTonTai(String ma)
 					break;	
 					
 				case "QUỐC LỘ":
-					hienThiDSVPHLATDBTheoDuongHuyenXa("QL24","14C","40B","40","","");
+					hienThiDSVPHLATDBQuocLo("QL24","14C","40B","40");
 					break;	
 					
-				case "TỈNH LỘ":
-					hienThiDSVPHLATDBTheoDuongHuyenXa("671","672","673","674","675",
-							"676","677","678","ĐăkKôi- Đăk pxi","Plei Krong","NH-MB-TMR-NL","");
-					break;	
+
 					
 				case "671":
 					hienThiDSVPHLATDBTheoDuongHuyenXa("Duong","671");
@@ -1684,23 +1922,110 @@ public boolean kiemTraMaTonTai(String ma)
 			}
 		});
 		
-			
 		
+	cboHuyen.addItemListener(new ItemListener() {
 		
-		cboXa.addActionListener(new ActionListener() {
-			
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				
-				//JOptionPane.showMessageDialog(null,"");
-				
-			}
-		});
+		@Override
+		public void itemStateChanged(ItemEvent e) {
+			// TODO Auto-generated method stub
+			LayDSxaTheoHuyen();
+		}
+	});
 		
+	
+	
+	
 		
 	}
 	
+	protected void XuatBaoCao() {
+		
+		// ghien cuu de dua du lieu vao phan nay		
+		
+		
+		//Vector<TruongHopViPham> readingStudents = thvp;		// tao 1 truong du lieu san de chen vao khi cap nhap
+		
+		String outputFileName = "BaoCao/TONGHOP2.xls";
+
+		boolean isWrited = UpdateExcel.writeTHVP( thvp, outputFileName);
+
+		if (isWrited) {
+
+			System.out.println("Xuat thanh cong");
+		} else {
+
+			System.out.println("Xuat That bai");
+		}
+	
+		
+		
+	}
+
+	protected void xuLyNhap() {
+	
+		stt=laySTTCuoiCung()+1;	
+		
+	txtSTT.setText(Integer.toString(stt));				
+		
+		
+	txtNgayPhatSinh.setText("");
+	
+	cboTuyenDuong.setSelectedIndex(-1);				
+	cboHuyen.setSelectedIndex(-1);			
+	cboXa.setSelectedIndex(-1);
+		
+	
+	txtNguoiXuLy.setText("");	
+	
+	
+	cboDoiXuLy.setSelectedIndex(-1);
+		
+	
+	
+	txtLyTrinh.setText("");
+	txtaNguoiViPham.setText("");
+	txtaNoiDungViPham.setText("");	
+				
+	cboLoaiViPham.setSelectedIndex(-1);		
+	
+	txtNgayLapBBKC.setText("");			
+	txtNgayCGBBKC.setText("");	
+	txtNgayLapBBVPHC.setText("");	
+	txtSoBBVPHC.setText("");	
+	txtNgayCGBBVPHC.setText("");	
+	txtSoBBCGVPHC.setText("");
+	
+	txtNgayQD.setText("");
+	txtSoQuyetDinh.setText("");
+	txtSoTien.setText("");
+	
+	txtNgayBBLV.setText("");			
+	txtSoBBLV.setText("");
+	
+	txtNgayBBCK.setText("");			
+	txtSoBBCK.setText("");	
+	txtaKetQuaXuLy.setText("");
+		
+	cboGhiChu.setSelectedIndex(-1);
+		
+	txtNgayThaoDo.setText("");		
+	
+	txtNgayCuongChe.setText("");	
+	txtNgayTuyenTruyen.setText("");		
+	
+	txtSoLanTaiPham.setText(null);
+	
+	txtaGhiChuKhac.setText("");	
+			
+	cboKhongThongKe.setSelectedIndex(-1);
+		
+	
+		
+	}
+
 	protected void xuLyLuu() {
+		
+		stt=laySTTCuoiCung()+1; // khai bao o day de tranh truong hop loi do conect 2 lan se bao loi
 		
 		if(kiemTraMaTonTai(txtSTT.getText())==true)
 		{
@@ -1722,42 +2047,332 @@ public boolean kiemTraMaTonTai(String ma)
 				
 				preStatement=conn.prepareStatement(sql);				
 			
-				preStatement.setDate(1,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayPhatSinh.getText()).getTime()));
-				preStatement.setString(2, cboHuyen.getName());				
-				preStatement.setString(3, cboXa.getSelectedItem().toString());
+				// kiem tra neu ngay thang null --null con neu khong null kiem tra ngay thang co hop le hay khong
+				if(txtNgayPhatSinh.getText().equals(null)||txtNgayPhatSinh.getText().toString().equals(""))
+				{
+					preStatement.setString(1,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayPhatSinh.getText())){
+					
+					preStatement.setDate(1,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayPhatSinh.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra ngày phát sinh \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
+				// them dieu kien kiem tra
+				//Neu khong chon thi hien thong bao va tra ve
+				if(cboHuyen.getSelectedIndex()!=-1)
+				{
+				preStatement.setString(2, cboHuyen.getSelectedItem().toString());	
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Tên Huyện/Thành phố");
+					
+				return;
+				}
+				
+								
+				
+				if(cboXa.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(3, cboXa.getSelectedItem().toString());
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Tên Xã");
+					
+				return;
+				}
+				
+				
 				preStatement.setString(4, txtNguoiXuLy.getText());
 				
-				preStatement.setString(5, cboDoiXuLy.getSelectedItem().toString());
-				preStatement.setString(6, cboTuyenDuong.getSelectedItem().toString());
+						
+				
+				if(cboDoiXuLy.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(5, cboDoiXuLy.getSelectedItem().toString());
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Đội xử lý");
+					
+				return;
+				}
+				
+				
+				
+				
+				if(cboTuyenDuong.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(6, cboTuyenDuong.getSelectedItem().toString());
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Tuyến đường");
+					
+				return;
+				}
+				
+				
 				preStatement.setString(7, txtLyTrinh.getText());
 				preStatement.setString(8, txtaNguoiViPham.getText());
 				preStatement.setString(9, txtaNoiDungViPham.getText());
-				preStatement.setString(10, cboLoaiViPham.getSelectedItem().toString());
 				
-				preStatement.setDate(11,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBKC.getText()).getTime()));
-				preStatement.setDate(12,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBKC.getText()).getTime()));
-				preStatement.setDate(13,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBVPHC.getText()).getTime()));
+				
+				
+				if(cboLoaiViPham.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(10, cboLoaiViPham.getSelectedItem().toString());
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Loại vi phạm");
+					
+				return;
+				}
+				
+				
+				// preStatement.setDate(11,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBKC.getText()).getTime()));
+				
+				if(txtNgayLapBBKC.getText().equals(null)||txtNgayLapBBKC.getText().toString().equals(""))
+				{
+					preStatement.setString(11,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayLapBBKC.getText())){
+					
+					preStatement.setDate(11,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBKC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra NgayLapBBKC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
+				
+				
+				
+				//preStatement.setDate(12,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBKC.getText()).getTime()));
+				if(txtNgayCGBBKC.getText().equals(null)||txtNgayCGBBKC.getText().toString().equals(""))
+				{
+					preStatement.setString(12,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayCGBBKC.getText())){
+					
+					preStatement.setDate(12,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBKC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra NgayCGBBKC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
+				
+				
+				
+			//	preStatement.setDate(13,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBVPHC.getText()).getTime()));
+				if(txtNgayLapBBVPHC.getText().equals(null)||txtNgayLapBBVPHC.getText().toString().equals(""))
+				{
+					preStatement.setString(13,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayLapBBVPHC.getText())){
+					
+					preStatement.setDate(13,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBVPHC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày lập BBVPHC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
 				preStatement.setString(14, txtSoBBVPHC.getText());
 				
-				preStatement.setDate(15,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBVPHC.getText()).getTime()));
+				//preStatement.setDate(15,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBVPHC.getText()).getTime()));
+				if(txtNgayCGBBVPHC.getText().equals(null)||txtNgayCGBBVPHC.getText().toString().equals(""))
+				{
+					preStatement.setString(15,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayCGBBVPHC.getText())){
+					
+					preStatement.setDate(15,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBVPHC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Chuyển giao BBVPHC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
 				preStatement.setString(16, txtSoBBCGVPHC.getText());
-				preStatement.setDate(17,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayQD.getText()).getTime()));
+			//	preStatement.setDate(17,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayQD.getText()).getTime()));
+				if(txtNgayQD.getText().equals(null)||txtNgayQD.getText().toString().equals(""))
+				{
+					preStatement.setString(17,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayQD.getText())){
+					
+					preStatement.setDate(17,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayQD.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Quyết định \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
 				preStatement.setString(18, txtSoQuyetDinh.getText());
 				preStatement.setString(19, txtSoTien.getText());
 				
-				preStatement.setDate(20,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBLV.getText()).getTime()));
+			//	preStatement.setDate(20,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBLV.getText()).getTime()));
+				if(txtNgayBBLV.getText().equals(null)||txtNgayBBLV.getText().toString().equals(""))
+				{
+					preStatement.setString(20,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayBBLV.getText())){
+					
+					preStatement.setDate(20,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBLV.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày BBLV \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
 				preStatement.setString(21, txtSoBBLV.getText());
-				preStatement.setDate(22,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBCK.getText()).getTime()));
+		//		preStatement.setDate(22,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBCK.getText()).getTime()));
+				if(txtNgayBBCK.getText().equals(null)||txtNgayBBCK.getText().toString().equals(""))
+				{
+					preStatement.setString(22,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayBBCK.getText())){
+					
+					preStatement.setDate(22,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBCK.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày BB Cam kết \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
 				preStatement.setString(23, txtSoBBCK.getText());
 				preStatement.setString(24, txtaKetQuaXuLy.getText());
-				preStatement.setString(25, cboGhiChu.getSelectedItem().toString());
 				
-				preStatement.setString(26, cboKhongThongKe.getSelectedItem().toString());
-				preStatement.setDate(27,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayThaoDo.getText()).getTime()));
-				preStatement.setDate(28,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCuongChe.getText()).getTime()));
-				preStatement.setDate(29,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayTuyenTruyen.getText()).getTime()));
 				
-				preStatement.setInt(30, Integer.parseInt(txtSoLanTaiPham.getText()));
+				
+				if(cboGhiChu.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(25, cboGhiChu.getSelectedItem().toString());
+				}
+				else 
+				{
+					preStatement.setString(25, null);
+					
+				
+				}
+								
+				
+				if(cboKhongThongKe.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(26, cboKhongThongKe.getSelectedItem().toString());
+				}
+				else 
+				{
+					preStatement.setString(26, null);
+					
+				
+				}
+				
+		//		preStatement.setDate(27,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayThaoDo.getText()).getTime()));
+				if(txtNgayThaoDo.getText().equals(null)||txtNgayThaoDo.getText().toString().equals(""))
+				{
+					preStatement.setString(27,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayThaoDo.getText())){
+					
+					preStatement.setDate(27,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayThaoDo.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Tháo dỡ \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+			//	preStatement.setDate(28,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCuongChe.getText()).getTime()));
+				if(txtNgayCuongChe.getText().equals(null)||txtNgayCuongChe.getText().toString().equals(""))
+				{
+					preStatement.setString(28,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayCuongChe.getText())){
+					
+					preStatement.setDate(28,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCuongChe.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Cưỡng chế \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+				
+			//	preStatement.setDate(29,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayTuyenTruyen.getText()).getTime()));
+				if(txtNgayTuyenTruyen.getText().equals(null)||txtNgayTuyenTruyen.getText().toString().equals(""))
+				{
+					preStatement.setString(29,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayTuyenTruyen.getText())){
+					
+					preStatement.setDate(29,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayTuyenTruyen.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Tuyên truyền \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}
+				
+								
+				if(txtSoLanTaiPham.getText().toString().equals(null)||txtSoLanTaiPham.getText().toString().equals(""))
+				{
+					preStatement.setInt(30, 0);
+				}
+				else 
+				{
+					
+					preStatement.setInt(30, Integer.parseInt(txtSoLanTaiPham.getText()));
+				}
+				
+				
+				
 				preStatement.setString(31, txtaGhiChuKhac.getText());
 				
 				preStatement.setString(32, txtSTT.getText());
@@ -1782,45 +2397,326 @@ public boolean kiemTraMaTonTai(String ma)
 			try
 			{
 				String sql="insert into NHAPTHONGTIN values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-				preStatement=conn.prepareStatement(sql);
-				preStatement.setString(1, txtSTT.getText());				
-				preStatement.setDate(2,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayPhatSinh.getText()).getTime()));
-							
-				preStatement.setString(3, cboHuyen.getName());				
-				preStatement.setString(4, cboXa.getSelectedItem().toString());
+				preStatement=conn.prepareStatement(sql);				
+				
+			//	preStatement.setString(1, txtSTT.getText());	
+				
+		//		System.out.println(laySTTCuoiCung()+1);
+				preStatement.setString(1, Integer.toString(stt));	
+				
+			//	preStatement.setDate(2,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayPhatSinh.getText()).getTime()));
+				if(txtNgayPhatSinh.getText().equals(null)||txtNgayPhatSinh.getText().toString().equals(""))
+				{
+					preStatement.setString(2,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayPhatSinh.getText())){
+					
+					preStatement.setDate(2,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayPhatSinh.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Phát sinh \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
+				if(cboHuyen.getSelectedIndex()!=-1)
+				{
+				
+					preStatement.setString(3, cboHuyen.getSelectedItem().toString());	
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Địa bàn TH/Huyện");
+					
+				return;
+				}
+				
+				
+				
+				if(cboXa.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(4, cboXa.getSelectedItem().toString());	
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Địa bàn Xã");
+					
+				return;
+				}
+				
 				preStatement.setString(5, txtNguoiXuLy.getText());
 				
-				preStatement.setString(6, cboDoiXuLy.getSelectedItem().toString());
-				preStatement.setString(7, cboTuyenDuong.getSelectedItem().toString());
+				
+				if(cboDoiXuLy.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(6, cboDoiXuLy.getSelectedItem().toString());	
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Đội xử lý");
+					
+				return;
+				}
+				
+				
+				if(cboTuyenDuong.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(7, cboTuyenDuong.getSelectedItem().toString());
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Tuyến đường");
+					
+				return;
+				}
+				
+				
 				preStatement.setString(8, txtLyTrinh.getText());
 				preStatement.setString(9, txtaNguoiViPham.getText());
 				preStatement.setString(10, txtaNoiDungViPham.getText());
-				preStatement.setString(11, cboLoaiViPham.getSelectedItem().toString());
 				
-				preStatement.setDate(12,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBKC.getText()).getTime()));
-				preStatement.setDate(13,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBKC.getText()).getTime()));
-				preStatement.setDate(14,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBVPHC.getText()).getTime()));
+				
+				if(cboLoaiViPham.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(11, cboLoaiViPham.getSelectedItem().toString());
+				}
+				else 
+				{
+					JOptionPane.showMessageDialog(null, "Chưa nhập Loại vi phạm");
+					
+				return;
+				}
+				
+				
+				
+			//	preStatement.setDate(12,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBKC.getText()).getTime()));
+				if(txtNgayLapBBKC.getText().equals(null)||txtNgayLapBBKC.getText().toString().equals(""))
+				{
+					preStatement.setString(12,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayLapBBKC.getText())){
+					
+					preStatement.setDate(12,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBKC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Lập BBKC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+			//	preStatement.setDate(13,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBKC.getText()).getTime()));
+				if(txtNgayCGBBKC.getText().equals(null)||txtNgayCGBBKC.getText().toString().equals(""))
+				{
+					preStatement.setString(13,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayCGBBKC.getText())){
+					
+					preStatement.setDate(13,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBKC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày CG BBKC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
+		//		preStatement.setDate(14,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBVPHC.getText()).getTime()));
+				if(txtNgayLapBBVPHC.getText().equals(null)||txtNgayLapBBVPHC.getText().toString().equals(""))
+				{
+					preStatement.setString(14,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayLapBBVPHC.getText())){
+					
+					preStatement.setDate(14,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayLapBBVPHC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Lập BBVPHC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
 				preStatement.setString(15, txtSoBBVPHC.getText());
 				
-				preStatement.setDate(16,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBVPHC.getText()).getTime()));
+		//		preStatement.setDate(16,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBVPHC.getText()).getTime()));
+				if(txtNgayCGBBVPHC.getText().equals(null)||txtNgayCGBBVPHC.getText().toString().equals(""))
+				{
+					preStatement.setString(16,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayCGBBVPHC.getText())){
+					
+					preStatement.setDate(16,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCGBBVPHC.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày CG BBVPHC \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
 				preStatement.setString(17, txtSoBBCGVPHC.getText());
-				preStatement.setDate(18,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayQD.getText()).getTime()));
+		//		preStatement.setDate(18,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayQD.getText()).getTime()));
+				if(txtNgayQD.getText().equals(null)||txtNgayQD.getText().toString().equals(""))
+				{
+					preStatement.setString(18,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayQD.getText())){
+					
+					preStatement.setDate(18,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayQD.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Quyết định \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
 				preStatement.setString(19, txtSoQuyetDinh.getText());
 				preStatement.setString(20, txtSoTien.getText());
 				
-				preStatement.setDate(21,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBLV.getText()).getTime()));
+		//		preStatement.setDate(21,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBLV.getText()).getTime()));
+				if(txtNgayBBLV.getText().equals(null)||txtNgayBBLV.getText().toString().equals(""))
+				{
+					preStatement.setString(21,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayBBLV.getText())){
+					
+					preStatement.setDate(21,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBLV.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày BBLV \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
 				preStatement.setString(22, txtSoBBLV.getText());
-				preStatement.setDate(23,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBCK.getText()).getTime()));
+			//	preStatement.setDate(23,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBCK.getText()).getTime()));
+				if(txtNgayBBCK.getText().equals(null)||txtNgayBBCK.getText().toString().equals(""))
+				{
+					preStatement.setString(23,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayBBCK.getText())){
+					
+					preStatement.setDate(23,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayBBCK.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày BBCK \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
 				preStatement.setString(24, txtSoBBCK.getText());
 				preStatement.setString(25, txtaKetQuaXuLy.getText());
-				preStatement.setString(26, cboGhiChu.getSelectedItem().toString());
 				
-				preStatement.setString(27, cboKhongThongKe.getSelectedItem().toString());
-				preStatement.setDate(28,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayThaoDo.getText()).getTime()));
-				preStatement.setDate(29,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCuongChe.getText()).getTime()));
-				preStatement.setDate(30,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayTuyenTruyen.getText()).getTime()));
 				
-				preStatement.setInt(31, Integer.parseInt(txtSoLanTaiPham.getText()));
+				if(cboKhongThongKe.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(26, cboGhiChu.getSelectedItem().toString());
+				}
+				else 
+				{
+					preStatement.setString(26, null);
+					
+				
+				}
+				
+				
+				if(cboKhongThongKe.getSelectedIndex()!=-1)
+				{
+					preStatement.setString(27, cboKhongThongKe.getSelectedItem().toString());
+				}
+				else 
+				{
+					preStatement.setString(27, null);
+					
+				
+				}
+				
+		//		preStatement.setDate(28,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayThaoDo.getText()).getTime()));
+				if(txtNgayThaoDo.getText().equals(null)||txtNgayThaoDo.getText().toString().equals(""))
+				{
+					preStatement.setString(28,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayThaoDo.getText())){
+					
+					preStatement.setDate(28,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayThaoDo.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Thao dỡ \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
+		//		preStatement.setDate(29,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCuongChe.getText()).getTime()));
+				if(txtNgayCuongChe.getText().equals(null)||txtNgayCuongChe.getText().toString().equals(""))
+				{
+					preStatement.setString(29,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayCuongChe.getText())){
+					
+					preStatement.setDate(29,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayCuongChe.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Cưỡng chế \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
+		//		preStatement.setDate(30,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayTuyenTruyen.getText()).getTime()));
+				if(txtNgayTuyenTruyen.getText().equals(null)||txtNgayTuyenTruyen.getText().toString().equals(""))
+				{
+					preStatement.setString(30,null);
+				}
+				
+				else if (KiemTraDuLieuDauVao.isValidDate(txtNgayTuyenTruyen.getText())){
+					
+					preStatement.setDate(30,new java.sql.Date(sdf_ddMMyyyy.parse(txtNgayTuyenTruyen.getText()).getTime()));
+					
+					}
+				
+				else {
+					JOptionPane.showMessageDialog(null, "Kiểm tra Ngày Tuyên truyền \n Nhập định dạng  (ngày/tháng/năm)");
+					return;
+				}		
+				
+				
+				if(txtSoLanTaiPham.getText().toString().equals(null)||txtSoLanTaiPham.getText().toString().equals(""))
+				{
+					preStatement.setInt(31, 0);
+				}
+				else 
+				{
+					
+					preStatement.setInt(31, Integer.parseInt(txtSoLanTaiPham.getText()));
+					
+					
+				}
+				
+				
 				preStatement.setString(32, txtaGhiChuKhac.getText());
 				
 				
@@ -1886,7 +2782,8 @@ public boolean kiemTraMaTonTai(String ma)
 	//Region Hien Thi Chi Tiet Vi pHam Khi Bam Vao
 
 	private void hienThiChiTietTHVP(String ma) {
-		
+		cboXa.removeAllItems();		// bo toan bo do khi chn huyen no cap nhap vao day
+		fillCboXa();  // chen vao o day de khi chon thi xa duoc cap nhap moi
 		try
 		{
 			String sql="select * from NHAPTHONGTIN where STT=?";
@@ -1898,15 +2795,20 @@ public boolean kiemTraMaTonTai(String ma)
 			{
 				txtSTT.setText(rs.getString("STT"));				
 					
+//				if(rs.getString("NgayPhatSinh")!=null)
+//				{
+//				txtNgayPhatSinh.setText(KiemTraDuLieuDauVao.KiemTraNgayThang(rs.getDate("NgayPhatSinh")));
+//				}
+//				else 
+//				{
+//					txtNgayPhatSinh.setText("");
+//				}
+//				
+//				//	txtNgayPhatSinh.setText(sdf_ddMMyyyy.format(rs.getDate("NgayPhatSinh"))); dung ra viet nhu nay nhung vi su dung ham kiem tra
 				
-				txtNgayPhatSinh.setText(KiemTraDuLieuDauVao.KiemTraNgayThang(rs.getDate("NgayPhatSinh")));
-				
-			//	txtNgayPhatSinh.setText(sdf_ddMMyyyy.format(rs.getDate("NgayPhatSinh"))); duoc thay bang dong lenh tren
-				
-		
+				txtNgayPhatSinh.setText(KiemTraDuLieuDauVao.KiemTraNgayThang2(rs,"NgayPhatSinh"));
 					
-				
-				
+								
 				// duyet qua Tuyen Duong									
 				
 			for(int j=0;j<cboTuyenDuong.getItemCount();j++)
@@ -1918,50 +2820,64 @@ public boolean kiemTraMaTonTai(String ma)
 			cboTuyenDuong.setSelectedIndex(j);
 				
 				}
-											
+				
+				else if (rs.getString("TenDuong")==""){
+					cboTuyenDuong.setSelectedIndex(-1);
+					}										
 			}
 			
 			
 			
 			for(int k=0;k<cboHuyen.getItemCount();k++)
 			{
-							
-				if(cboHuyen.getItemAt(k).getTenHuyen().equals(rs.getString("Huyen")))
+				 if(rs.getString("Huyen")==""||rs.getString("Huyen")==null){
+					cboHuyen.setSelectedIndex(-1);
+					}						
+			
+				 else	if(cboHuyen.getItemAt(k).getTenHuyen().equals(rs.getString("Huyen")))
 				{
 					
 					cboHuyen.setSelectedIndex(k);
 				
 				}
-											
+									
 			}
 			
 			
-			for(int k=0;k<cboXa.getItemCount();k++)
+			for(int l=0;l<cboXa.getItemCount();l++)
 			{
-							
-				if(cboXa.getItemAt(k).getTenXa().equals(rs.getString("Xa")))
+				
+				 if(rs.getString("Xa")==""||rs.getString("Xa")==null){
+					cboXa.setSelectedIndex(-1);
+					}						
+				
+				 else	if(cboXa.getItemAt(l).getTenXa().equals(rs.getString("Xa")))
 				{
 					
-					cboXa.setSelectedIndex(k);
+					cboXa.setSelectedIndex(l);
 				
 				}
-											
+										
 			}
 			
 			txtNguoiXuLy.setText(rs.getString("NguoiXuLy"));	
 			
 			
 			
-			for(int k=0;k<cboDoiXuLy.getItemCount();k++)
+			for(int m=0;m<cboDoiXuLy.getItemCount();m++)
 			{
-							
-				if(cboDoiXuLy.getItemAt(k).getTenDoi().equals(rs.getString("DoiXuLy")))
+					
+				 if (rs.getString("DoiXuLy")==null){
+					cboDoiXuLy.setSelectedIndex(-1);
+					}				
+				
+				 else	if(cboDoiXuLy.getItemAt(m).getTenDoi().equals(rs.getString("DoiXuLy")))
 				{
 					
-					cboDoiXuLy.setSelectedIndex(k);
+					cboDoiXuLy.setSelectedIndex(m);
 				
 				}
-											
+									
 			}
 			
 			txtLyTrinh.setText(rs.getString("LyTrinh"));
@@ -1969,16 +2885,19 @@ public boolean kiemTraMaTonTai(String ma)
 			txtaNoiDungViPham.setText(rs.getString("NoiDungViPham"));
 			
 						
-			for(int k=0;k<cboLoaiViPham.getItemCount();k++)
+			for(int n=0;n<cboLoaiViPham.getItemCount();n++)
 			{
-							
-				if(cboLoaiViPham.getItemAt(k).getLoaiViPham().equals(rs.getString("LoaiViPham")))
+					
+				 if(rs.getString("LoaiViPham")==""||rs.getString("LoaiViPham")==null){
+					cboLoaiViPham.setSelectedIndex(-1);
+					}				
+				 else if(cboLoaiViPham.getItemAt(n).getLoaiViPham().equals(rs.getString("LoaiViPham")))
 				{
 					
-					cboLoaiViPham.setSelectedIndex(k);
+					cboLoaiViPham.setSelectedIndex(n);
 				
 				}
-											
+									
 			}
 			
 			
@@ -2023,16 +2942,22 @@ public boolean kiemTraMaTonTai(String ma)
 			
 			txtaKetQuaXuLy.setText(rs.getString("KetQuaXuLy"));
 			
-			for(int k=0;k<cboGhiChu.getItemCount();k++)
+			
+			
+			for(int o=0;o<cboGhiChu.getItemCount();o++)
 			{
-							
-				if(cboGhiChu.getItemAt(k).getGhiChu().equals(rs.getString("GhiChu")))
+					
+				 if(rs.getString("GhiChu")==null){
+					cboGhiChu.setSelectedIndex(-1);
+					}						
+				 else if((rs.getString("GhiChu").equals(cboGhiChu.getItemAt(o).getGhiChu())))
 				{
 					
-					cboGhiChu.setSelectedIndex(k);
+					cboGhiChu.setSelectedIndex(o);
 				
 				}
-											
+				
+						
 			}
 			
 
@@ -2047,19 +2972,20 @@ public boolean kiemTraMaTonTai(String ma)
 			txtaGhiChuKhac.setText(rs.getString("GhiChuKhac"));
 			
 			
-			for(int l=0;l<cboKhongThongKe.getItemCount();l++)
+			for(int p=0;p<cboKhongThongKe.getItemCount();p++)
 			{
-			
+				 if(rs.getString("KhongThongKe")==null){
+					cboKhongThongKe.setSelectedIndex(-1);
+					}				
 							
-				if(cboKhongThongKe.getItemAt(l).getKhongThongKe().equals(rs.getString("KhongThongKe")))
+				 else if((rs.getString("KhongThongKe").equals(cboKhongThongKe.getItemAt(p).getKhongThongKe())))
 				{
 					
-					
-					cboKhongThongKe.setSelectedIndex(l);
+					cboKhongThongKe.setSelectedIndex(p);
 				
 				}
 				
-								
+							
 			}
 			
 			
@@ -2156,11 +3082,16 @@ private void fillCboHuyen() {
 	
 	for(Huyen huyen:HuyenService.LayDSHuyen())		// dua truc tiep vi static va tra ve la dsLoaiviPham
 	{
-		cboHuyen.addItem(huyen);		
+		cboHuyen.addItem(huyen);
+		
 	}
 	
 	}
 	
+
+
+
+
 private void fillCboXa() {
 	
 	for(Xa xa:XaService.LayDSXa())		// dua truc tiep vi static va tra ve la dsLoaiviPham
@@ -2173,6 +3104,7 @@ private void fillCboXa() {
 	}
 	
 	}
+
 
 private void fillCboKhongThongKe() {
 	
@@ -2254,31 +3186,43 @@ private void hienThiDSVPHLATDBTheoDuongHuyenXa(String DuongHuyenXa, String TenDu
 			vec.add(result.getString("GhiChuKhac"));
 			
 			dtm.addRow(vec);
+			
+			ThongTinTongQuat(dtm);
 		
 		}
-		
-		
+				
 	}
 	
 	catch(Exception ex)
+	
 	{
 		ex.printStackTrace();
 	}
 }
 
 
-private void hienThiDSVPHLATDBTheoDuongHuyenXa(String Duong1, String Duong2,String Duong3,String Duong4,
-		String Duong5,String Duong6) 
+
+	
+
+
+private void hienThiDSVPHLATDBTinhLo() 
 {
 	
 	try{
-		CallableStatement 	callStatement=conn.prepareCall("{call LayDSVPTheoTuyenDuongQuocLo(?,?,?,?,?,?)}");
-			callStatement.setString(1,Duong1);	
-			callStatement.setString(2,Duong2);	
-			callStatement.setString(3,Duong3);	
-			callStatement.setString(4,Duong4);	
-			callStatement.setString(5,Duong5);	
-			callStatement.setString(6,Duong6);	
+		CallableStatement 	callStatement=conn.prepareCall("{call LayDSVPTheoTuyenDuongTinhLo}");
+//			callStatement.setString(1,Duong1);	
+//			callStatement.setString(2,Duong2);	
+//			callStatement.setString(3,Duong3);	
+//			callStatement.setString(4,Duong4);	
+//			callStatement.setString(5,Duong5);	
+//			callStatement.setString(6,Duong6);	
+//			callStatement.setString(7,Duong7);	
+//			callStatement.setString(8,Duong8);	
+			
+//			callStatement.setString(9,Duong9);	
+//			callStatement.setString(10,Duong10);	
+//			callStatement.setString(11,Duong11);	
+		
 			
 		result=callStatement.executeQuery();
 		dtm.setRowCount(0);
@@ -2324,7 +3268,8 @@ private void hienThiDSVPHLATDBTheoDuongHuyenXa(String Duong1, String Duong2,Stri
 			vec.add(result.getString("GhiChuKhac"));
 			
 			dtm.addRow(vec);
-		
+			
+			ThongTinTongQuat(dtm);
 		}
 	}
 	catch(Exception ex)
@@ -2333,26 +3278,17 @@ private void hienThiDSVPHLATDBTheoDuongHuyenXa(String Duong1, String Duong2,Stri
 	}
 		
 }
-	
 
-private void hienThiDSVPHLATDBTheoDuongHuyenXa(String Duong1, String Duong2,String Duong3,String Duong4,
-		String Duong5,String Duong6, String Duong7,String Duong8,String Duong9,String Duong10,String Duong11,String Duong12) 
+private void hienThiDSVPHLATDBQuocLo(String Duong1, String Duong2,String Duong3,String Duong4) 
 {
 	
 	try{
-		CallableStatement 	callStatement=conn.prepareCall("{call LayDSVPTheoTuyenDuongQuocLo(?,?,?,?,?,?,?,?,?,?,?,?)}");
+		CallableStatement 	callStatement=conn.prepareCall("{call LayDSVPTheoTuyenDuongQuocLo(?,?,?,?)}");
 			callStatement.setString(1,Duong1);	
 			callStatement.setString(2,Duong2);	
 			callStatement.setString(3,Duong3);	
 			callStatement.setString(4,Duong4);	
-			callStatement.setString(5,Duong5);	
-			callStatement.setString(6,Duong6);	
-			callStatement.setString(7,Duong7);	
-			callStatement.setString(8,Duong8);	
-			callStatement.setString(9,Duong9);	
-			callStatement.setString(10,Duong10);	
-			callStatement.setString(11,Duong11);	
-			callStatement.setString(12,Duong12);	
+				
 			
 		result=callStatement.executeQuery();
 		dtm.setRowCount(0);
@@ -2398,7 +3334,8 @@ private void hienThiDSVPHLATDBTheoDuongHuyenXa(String Duong1, String Duong2,Stri
 			vec.add(result.getString("GhiChuKhac"));
 			
 			dtm.addRow(vec);
-		
+			
+			ThongTinTongQuat(dtm);
 		}
 	}
 	catch(Exception ex)
@@ -2408,9 +3345,65 @@ private void hienThiDSVPHLATDBTheoDuongHuyenXa(String Duong1, String Duong2,Stri
 		
 }
 
+Date date = new Date();
+private void ThongTinTongQuat(DefaultTableModel dtm)
+{
+	
+	if(dtm.getRowCount()>0){
+    lblThongTinTongQuat.setText("Ngày hiện tại là: " +sdf_ddMMyyyy.format(date).toString()
+  		  +"; Tổng số có "+Integer.toString( dtm.getRowCount())+" trường hợp vi phạm");
+    
+	}
+	
+	else  lblThongTinTongQuat.setText("Ngày hiện tại là: " +sdf_ddMMyyyy.format(date).toString()
+	  		  +"; Tổng số có  0 trường hợp vi phạm");
+}
 
 
+private void LayDSxaTheoHuyen() { 
+	// private void comboboxAPopupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent evt)
+	String id_Huyen="TP";
+	
+	 if(cboHuyen.getSelectedItem()!=null)
+	{
+	int luu=cboXa.getSelectedIndex();
+	Huyen huyen =(Huyen) cboHuyen.getSelectedItem();			
+     id_Huyen = huyen.getIdHuyen();
+	
+    
+ //   System.out.println(id_Huyen);
+    
+    String sql = "select * from XA where ID_HUYEN =?";
+  
+    cboXa.removeAllItems(); // <- Clear comboboxB
 
+    try {
+        preStatement=conn.prepareStatement(sql);
+		preStatement.setString(1,id_Huyen);
+		ResultSet rs=preStatement.executeQuery();
+		
+        
+        while (rs.next()) {  // <- Include all authors found
+          
+                                 
+           	Xa xa=new Xa();			
+			xa.setIdXa(rs.getInt("ID_XA"));
+			xa.setTenXa(rs.getString("TEN_XA"));
+			xa.setIdHuyen(rs.getString("ID_HUYEN"));
+           
+           cboXa.addItem(xa);
+           
+        }
+        
+    //    System.out.println("da chen xong");
+        cboXa.setSelectedIndex(luu);
+
+   } catch(Exception e) {
+       JOptionPane.showMessageDialog(null,e);
+   }
+    
+	}
+}
 
 
 

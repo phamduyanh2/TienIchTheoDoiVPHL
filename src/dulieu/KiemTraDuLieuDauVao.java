@@ -55,6 +55,8 @@ public  class KiemTraDuLieuDauVao {
 		return ngaythangnam;
 	}
 	
+	
+	
 
 	public static String KiemTraNgayThang(java.sql.Date ngaykiemtra)
 	{
@@ -71,9 +73,10 @@ public  class KiemTraDuLieuDauVao {
 		
 		String ngaythangnam;
 		
-		if(ngaykiemtra.before(MocSoSanh)||ngaykiemtra==null) // dieu kien thu 2 0 day khong co tac dung
+		if(ngaykiemtra.before(MocSoSanh)||ngaykiemtra.equals(null)) // dieu kien thu 2 0 day khong co tac dung
 		{
 			ngaythangnam="";
+			
 		}
 		else
 		{
@@ -83,8 +86,17 @@ public  class KiemTraDuLieuDauVao {
 		return ngaythangnam;
 	}
 	
-	// SU DUNG HAM NAY DE RUT GON HAM LAY DU LIEU 
 	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	// SU DUNG HAM NAY DE RUT GON HAM LAY DU LIEU 
 	
 	
 	public static boolean isValidDate(String dateToValidate)
@@ -126,6 +138,15 @@ public  class KiemTraDuLieuDauVao {
         
         return true;
     }
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
 	
 //	public static Date kiemTraVaChuyenSangNgayThang(String ngayThangCanChuyen)

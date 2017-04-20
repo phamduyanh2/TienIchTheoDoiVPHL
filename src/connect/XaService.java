@@ -25,6 +25,7 @@ public static Connection connection=KetNoi.getConnect("XPFINAL\\SQLEXPRESS", "HA
 				
 				xa.setIdXa(result.getInt("ID_XA"));
 				xa.setTenXa(result.getString("TEN_XA"));
+				xa.setIdHuyen(result.getString("ID_HUYEN"));
 								
 				dsXa.add(xa);
 								
